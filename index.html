@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>全格式图片转换器 (终极版)</title>
+    <title>全格式图片转换器</title>
     <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.umd.js"></script>
     <style>
         :root {
@@ -94,12 +94,12 @@
             <div class="control-group">
                 <label for="formatSelect">目标格式</label>
                 <select id="formatSelect">
-                    <option value="image/jpeg">JPG (有损压缩)</option>
-                    <option value="image/png">PNG (无损透明)</option>
-                    <option value="image/webp">WEBP (现代高压缩)</option>
-                    <option value="image/avif">AVIF (次世代格式)</option>
-                    <option value="image/bmp">BMP (标准位图)</option>
-                    <option value="image/x-icon">ICO (多尺寸图标)</option>
+                    <option value="image/jpeg">JPG</option>
+                    <option value="image/png">PNG</option>
+                    <option value="image/webp">WEBP</option>
+                    <option value="image/avif">AVIF</option>
+                    <option value="image/bmp">BMP</option>
+                    <option value="image/x-icon">ICO</option>
                 </select>
             </div>
 
@@ -235,9 +235,7 @@
             }
         });
 
-        // ==========================================
-        // 原生 BMP 编码器 (纯字节流构造)
-        // ==========================================
+
         function canvasToBMP(canvas) {
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
             const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -284,14 +282,11 @@
             return new Blob([buffer], { type: 'image/bmp' });
         }
 
-        // ==========================================
-        // 原生 ICO 编码器 (多尺寸 PNG 容器打包)
-        // ==========================================
+
         async function canvasToICO(img) {
             const sizes = [16, 32, 48, 64, 128, 256];
             const pngBuffers = [];
 
-            // 生成各个尺寸的 PNG 数据
             for (const size of sizes) {
                 const c = document.createElement('canvas');
                 c.width = size;
@@ -302,7 +297,7 @@
                 pngBuffers.push({ size, buffer: new Uint8Array(await blob.arrayBuffer()) });
             }
 
-            // 计算总大小: 6(头) + 16*数量(目录) + 所有PNG数据长度
+
             let totalSize = 6 + pngBuffers.length * 16;
             pngBuffers.forEach(p => totalSize += p.buffer.length);
 
