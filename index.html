@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全格式图片转换器 (终极版)</title>
+    <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.umd.js"></script>
+    <style>
+        :root {
+            --primary-color: #4f46e5;
+            --primary-hover: #4338ca;
+            --bg-color: #f3f4f6;
+            --card-bg: #ffffff;
+            --text-main: #1f2937;
+            --text-muted: #6b7280;
+            --border-radius: 12px;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+        .converter-card {
+            background: var(--card-bg);
+            padding: 40px;
+            border-radius: var(--border-radius);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+            width: 100%;
+            max-width: 500px;
+            text-align: center;
+        }
+        h1 { margin-top: 0; font-size: 24px; margin-bottom: 8px; }
+        p.subtitle { color: var(--text-muted); font-size: 14px; margin-bottom: 30px; }
+        .upload-area {
+            border: 2px dashed #d1d5db;
+            border-radius: var(--border-radius);
+            padding: 40px 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 20px;
+            position: relative;
+        }
+        .upload-area:hover, .upload-area.dragover { border-color: var(--primary-color); background-color: #eef2ff; }
+        .upload-area input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+        .preview-container { margin: 20px 0; display: none; }
+        .preview-container img { max-width: 100%; max-height: 200px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .controls { display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px; }
+        .control-group { display: flex; align-items: center; justify-content: space-between; text-align: left; }
+        .control-group label { font-size: 14px; font-weight: 500; }
+        select, input[type="range"] { padding: 8px 12px; border-radius: 6px; border: 1px solid #d1d5db; outline: none; width: 60%; }
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            width: 100%;
+        }
+        button:hover:not(:disabled) { background-color: var(--primary-hover); }
+        button:disabled { background-color: #9ca3af; cursor: not-allowed; }
+        .quality-wrapper { display: flex; align-items: center; gap: 10px; width: 60%; }
+        .quality-value { font-size: 12px; color: var(--text-muted); min-width: 30px; }
+    </style>
+</head>
+<body>
+
+    <div class="converter-card">
+        <h1>全格式图片转换器</h1>
+        <p class="subtitle">支持标准 BMP 与多尺寸 ICO 生成，纯本地处理</p>
+
+        <div class="upload-area" id="uploadArea">
+            <input type="file" id="fileInput" accept="image/*, .heic, .heif">
+            <div>
+                <svg style="width: 40px; height: 40px; color: #9ca3af; margin-bottom: 10px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                <p style="margin: 0; color: #6b7280; font-size: 14px;">点击或拖拽图片到此处</p>
+            </div>
+        </div>
+
+        <div class="preview-container" id="previewContainer">
+            <img id="previewImage" src="" alt="预览">
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="formatSelect">目标格式</label>
+                <select id="formatSelect">
+                    <option value="image/jpeg">JPG (有损压缩)</option>
+                    <option value="image/png">PNG (无损透明)</option>
+                    <option value="image/webp">WEBP (现代高压缩)</option>
+                    <option value="image/avif">AVIF (次世代格式)</option>
+                    <option value="image/bmp">BMP (标准位图)</option>
+                    <option value="image/x-icon">ICO (多尺寸图标)</option>
+                </select>
+            </div>
+
+            <div class="control-group" id="qualityGroup">
+                <label for="qualityRange">压缩质量</label>
+                <div class="quality-wrapper">
+                    <input type="range" id="qualityRange" min="0.1" max="1" step="0.1" value="0.9">
+                    <span class="quality-value" id="qualityValue">90%</span>
+                </div>
+            </div>
+        </div>
+
+        <button id="convertBtn" disabled style="margin-top: 20px;">转换并下载</button>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const uploadArea = document.getElementById('uploadArea');
+        const previewContainer = document.getElementById('previewContainer');
+        const previewImage = document.getElementById('previewImage');
+        const formatSelect = document.getElementById('formatSelect');
+        const qualityRange = document.getElementById('qualityRange');
+        const qualityValue = document.getElementById('qualityValue');
+        const qualityGroup = document.getElementById('qualityGroup');
+        const convertBtn = document.getElementById('convertBtn');
+
+        let currentFile = null;
+        let isHeic = false;
+
+        // --- 基础事件绑定 ---
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, e => { e.preventDefault(); e.stopPropagation(); }, false);
+        });
+        ['dragenter', 'dragover'].forEach(eventName => uploadArea.addEventListener(eventName, () => uploadArea.classList.add('dragover'), false));
+        ['dragleave', 'drop'].forEach(eventName => uploadArea.addEventListener(eventName, () => uploadArea.classList.remove('dragover'), false));
+        uploadArea.addEventListener('drop', e => { if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]); }, false);
+        fileInput.addEventListener('change', e => { if (e.target.files.length > 0) handleFile(e.target.files[0]); });
+
+        async function handleFile(file) {
+            const isHeicFile = file.type === 'image/heic' || file.type === 'image/heif' || file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif');
+            if (!file.type.startsWith('image/') && !isHeicFile) {
+                alert('请选择有效的图片文件！');
+                return;
+            }
+            currentFile = file;
+            isHeic = isHeicFile;
+
+            try {
+                let displayBlob = file;
+                if (isHeic) {
+                    displayBlob = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.8 });
+                }
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    previewImage.src = e.target.result;
+                    previewContainer.style.display = 'block';
+                    convertBtn.disabled = false;
+                };
+                reader.readAsDataURL(displayBlob);
+            } catch (error) {
+                console.error("文件读取/解码错误:", error);
+                alert("图片解析失败，请检查文件是否损坏。");
+            }
+        }
+
+        qualityRange.addEventListener('input', function() {
+            qualityValue.textContent = Math.round(this.value * 100) + '%';
+        });
+
+        formatSelect.addEventListener('change', function() {
+            const val = this.value;
+            if (['image/png', 'image/bmp', 'image/x-icon'].includes(val)) {
+                qualityGroup.style.opacity = '0.5';
+                qualityRange.disabled = true;
+            } else {
+                qualityGroup.style.opacity = '1';
+                qualityRange.disabled = false;
+            }
+        });
+
+        // --- 核心转换逻辑 ---
+        convertBtn.addEventListener('click', async function() {
+            if (!currentFile) return;
+
+            const targetFormat = formatSelect.value;
+            const quality = parseFloat(qualityRange.value);
+
+            let img = new Image();
+
+            img.onload = async function() {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+                if (targetFormat === 'image/jpeg') {
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                }
+                ctx.drawImage(img, 0, 0);
+
+                let blob;
+                if (targetFormat === 'image/bmp') {
+                    blob = canvasToBMP(canvas);
+                } else if (targetFormat === 'image/x-icon') {
+                    blob = await canvasToICO(img);
+                } else {
+                    blob = await new Promise(r => canvas.toBlob(r, targetFormat, quality));
+                }
+
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+
+                const originalName = currentFile.name.substring(0, currentFile.name.lastIndexOf('.')) || currentFile.name;
+                let ext = targetFormat.split('/')[1].replace('jpeg', 'jpg').replace('x-icon', 'ico');
+                a.download = `${originalName}_converted.${ext}`;
+
+                document.body.appendChild(a);
+                a.click();
+
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 100);
+            };
+
+            if (isHeic) {
+                const heicConvertedBlob = await heic2any({ blob: currentFile, toType: "image/jpeg" });
+                img.src = URL.createObjectURL(heicConvertedBlob);
+            } else {
+                img.src = previewImage.src;
+            }
+        });
+
+        // ==========================================
+        // 原生 BMP 编码器 (纯字节流构造)
+        // ==========================================
+        function canvasToBMP(canvas) {
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const width = imgData.width;
+            const height = imgData.height;
+            const pixelData = imgData.data;
+
+            const rowBytes = width * 4;
+            const fileSize = 54 + rowBytes * height; // 54 = 14(文件头) + 40(信息头)
+            const buffer = new ArrayBuffer(fileSize);
+            const view = new DataView(buffer);
+
+            // 1. BITMAPFILEHEADER (14 bytes)
+            view.setUint8(0, 0x42); // 'B'
+            view.setUint8(1, 0x4D); // 'M'
+            view.setUint32(2, fileSize, true);
+            view.setUint32(6, 0, true);
+            view.setUint32(10, 54, true); // 像素数据偏移量
+
+            // 2. BITMAPINFOHEADER (40 bytes)
+            view.setUint32(14, 40, true);
+            view.setUint32(18, width, true);
+            view.setUint32(22, height, true);
+            view.setUint16(26, 1, true); // 平面数
+            view.setUint16(28, 32, true); // 位深度 32-bit
+            view.setUint32(30, 0, true); // 压缩方式 (BI_RGB)
+            view.setUint32(34, rowBytes * height, true);
+            view.setUint32(38, 0, true);
+            view.setUint32(42, 0, true);
+            view.setUint32(46, 0, true);
+            view.setUint32(50, 0, true);
+
+            // 3. 像素数据 (BMP 默认从下往上存储，且为 BGRA)
+            let offset = 54;
+            for (let y = height - 1; y >= 0; y--) {
+                for (let x = 0; x < width; x++) {
+                    const i = (y * width + x) * 4;
+                    view.setUint8(offset++, pixelData[i + 2]); // B
+                    view.setUint8(offset++, pixelData[i + 1]); // G
+                    view.setUint8(offset++, pixelData[i]);     // R
+                    view.setUint8(offset++, pixelData[i + 3]); // A
+                }
+            }
+            return new Blob([buffer], { type: 'image/bmp' });
+        }
+
+        // ==========================================
+        // 原生 ICO 编码器 (多尺寸 PNG 容器打包)
+        // ==========================================
+        async function canvasToICO(img) {
+            const sizes = [16, 32, 48, 64, 128, 256];
+            const pngBuffers = [];
+
+            // 生成各个尺寸的 PNG 数据
+            for (const size of sizes) {
+                const c = document.createElement('canvas');
+                c.width = size;
+                c.height = size;
+                const ctx = c.getContext('2d');
+                ctx.drawImage(img, 0, 0, size, size);
+                const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+                pngBuffers.push({ size, buffer: new Uint8Array(await blob.arrayBuffer()) });
+            }
+
+            // 计算总大小: 6(头) + 16*数量(目录) + 所有PNG数据长度
+            let totalSize = 6 + pngBuffers.length * 16;
+            pngBuffers.forEach(p => totalSize += p.buffer.length);
+
+            const icoBuffer = new ArrayBuffer(totalSize);
+            const view = new DataView(icoBuffer);
+            const u8View = new Uint8Array(icoBuffer);
+
+            // 1. ICONDIR (6 bytes)
+            view.setUint16(0, 0, true); // Reserved
+            view.setUint16(2, 1, true); // Type: 1 for ICO
+            view.setUint16(4, pngBuffers.length, true); // Image count
+
+            // 2. ICONDIRENTRY (16 bytes each)
+            let offset = 6 + pngBuffers.length * 16;
+            pngBuffers.forEach((p, index) => {
+                const entryOffset = 6 + index * 16;
+                u8View[entryOffset] = p.size >= 256 ? 0 : p.size; // Width
+                u8View[entryOffset + 1] = p.size >= 256 ? 0 : p.size; // Height
+                u8View[entryOffset + 2] = 0; // Color palette
+                u8View[entryOffset + 3] = 0; // Reserved
+                view.setUint16(entryOffset + 4, 1, true); // Planes
+                view.setUint16(entryOffset + 6, 32, true); // Bit count
+                view.setUint32(entryOffset + 8, p.buffer.length, true); // Bytes in resource
+                view.setUint32(entryOffset + 12, offset, true); // Image offset
+
+                // 3. 写入 PNG 数据
+                u8View.set(p.buffer, offset);
+                offset += p.buffer.length;
+            });
+
+            return new Blob([icoBuffer], { type: 'image/x-icon' });
+        }
+    </script>
+</body>
+</html>
